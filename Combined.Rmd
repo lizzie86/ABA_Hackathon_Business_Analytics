@@ -1,0 +1,468 @@
+---
+title: "Combined"
+author: "Jiun Lee"
+date: "2023-11-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(magrittr)
+library(reshape2)
+library(ggplot2)
+library(ggpubr)
+library(gridExtra)
+library(ggplot2)
+library(dplyr)
+library(boot)
+library(tidyverse)
+library(caret)
+library(lme4)
+library(forecast)
+
+```
+
+```{r}
+# read in the data
+insurance <- read.csv("Medical Insurance dataset.csv")
+```
+
+```{r}
+# check for null values
+colSums(is.na(insurance)) # no nulls
+```
+
+```{r}
+# new data set with altered variables ready for eda
+insurance_clean <- insurance
+insurance_clean$female <- factor(ifelse(insurance$sex == "female", 1, 0)) # binary var
+insurance_clean$smoker <- factor(ifelse(insurance$smoker == "yes", 1, 0)) 
+insurance_clean$region <- factor(insurance_clean$region)
+insurance_clean %<>% 
+  select(-sex)
+
+
+insurance_clean <- insurance_clean %>%
+  mutate(
+  region = case_when(
+  region == "northeast" ~ "NE",
+  region == "northwest" ~ "NW",
+  region == "southeast" ~ "SE",
+  region == "southwest" ~ "SW",
+    TRUE ~ region  
+))
+
+insurance_clean$region <- factor(insurance_clean$region)
+```
+
+# Checking Multicollinearity
+```{r}
+cor_df <- insurance_clean %>% select (-charges)
+cor_df$age <- as.numeric(cor_df$age)
+cor_df$bmi <- as.numeric(cor_df$bmi)
+cor_df$children <- as.numeric(cor_df$children)
+cor_df$smoker <- as.numeric(cor_df$smoker)
+cor_df$region <- as.numeric(cor_df$region)
+cor_df$female <- as.numeric(cor_df$female)
+cor_matrix <- cor(cor_df)
+melted_cor_matrix <- melt(cor_matrix)
+
+ggplot(data = melted_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = sprintf("%.2f", value)), vjust = 1) +
+  scale_fill_gradient2(low = "#7ed5d3", high = "#36c9ef", mid = "white", 
+                       midpoint = 0, limit = c(-1, 1), space = "Lab", 
+                       name = "Pearson\nCorrelation") +
+  
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1),
+        axis.text.y = element_text(size = 12)) +
+  coord_fixed()
+```
+- There's no multicollinearity found.
+
+# Covariance
+```{r}
+cov_matrix <- cov(cor_df)
+print(cov_matrix)
+melted_cov_matrix <- as.data.frame(as.table(cov_matrix))
+
+ggplot(data = melted_cov_matrix, aes(x = Var1, y = Var2, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = sprintf("%.2f", Freq)), vjust = 1) +
+  scale_fill_gradient2(low = "#7ed5d3", high = "#36c9ef", mid = "white", 
+                       midpoint = 0, space = "Lab", 
+                       name = "Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1),
+        axis.text.y = element_text(size = 12)) +
+  coord_fixed()
+```
+- There is high covariacne between Age and BMI. (9.36) This might have interaction effects.
+
+
+# Correlation
+```{r}
+cor_df_2 <- insurance_clean
+cor_df_2$age <- as.numeric(cor_df_2$age)
+cor_df_2$bmi <- as.numeric(cor_df_2$bmi)
+cor_df_2$children <- as.numeric(cor_df_2$children)
+cor_df_2$smoker <- as.numeric(cor_df_2$smoker)
+  cor_df_2$region <- as.numeric(cor_df_2$region)
+cor_df_2$female <- as.numeric(cor_df_2$female)
+cor_df_2$charges <- as.numeric(cor_df_2$charges)
+
+cor_matrix <- cor(cor_df_2)
+melted_cor_matrix <- melt(cor_matrix)
+
+my_pallete <- c("#7ed5d3", "#36c9ef", "#2c93d5", "#12528b")
+ggplot(data = melted_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  geom_text(aes(label = sprintf("%.2f", value)), vjust = 1) +
+  scale_fill_gradient2(low = "red", high = "#36c9ef", mid = "white", 
+                       midpoint = 0, limit = c(-1, 1), space = "Lab", 
+                       name = "Pearson\nCorrelation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, size = 12, hjust = 1),
+        axis.text.y = element_text(size = 12)) +
+  coord_fixed()
+
+```
+- Smoker & Charges (0.79)
+- Age & Charges (0.30)
+- BMI & Charges (0.20)
+- Smoker, Age, and BMI are the variables affecting charges.
+
+# Age affecting Charges: check the linear trend
+```{r}
+insurance_clean %>%
+  ggplot(aes(x = age,y=charges,colour=smoker)) +
+  geom_point() + 
+   geom_smooth(method = lm,se=FALSE)+
+  theme_minimal()+
+  theme(title=element_text(size=10),strip.text = element_text(size=10),axis.title = element_text(size=7), plot.caption = element_text(size=9),axis.text.x=element_text(size=8))
+
+```
+
+# BMI affecting Charges: check the linear trend
+```{r}
+insurance_clean %>%
+  ggplot(aes(x = bmi,y=charges,colour=smoker)) +
+  geom_point() + 
+   geom_smooth(method = lm,se=FALSE)+
+  theme_minimal()+
+  theme(title=element_text(size=10),strip.text = element_text(size=10),axis.title = element_text(size=7), plot.caption = element_text(size=9),axis.text.x=element_text(size=8))
+
+```
+
+# Oversampling on an imbalanced dataset
+```{r}
+# separate majority and minority classes 
+majority_class <- filter(insurance_clean, smoker == 0) # 1064
+minority_class <- filter(insurance_clean, smoker == 1) # 274
+ 
+insurance_over <- rbind(insurance_clean, minority_class)
+
+```
+
+# Save the cleaned, oversampled dataset / import oversampled dataset
+```{r}
+# write.csv(insurance_over, "/Users/composer117/Desktop/ABA_Hackathon/cleaned_df.csv", row.names = FALSE)
+
+#import 
+df <- read.csv('cleaned_df.csv')
+
+df$region <- ifelse(df$region == "NE", 1, 
+                                  ifelse(df$region == "NW", 2, 
+                                        ifelse(df$region == "SE", 3,4)
+                                        )
+                    )
+```
+
+
+# Model 1 Performance with different seeds(MAE,RMSE,MAPE)
+```{r}
+train_MAE <- c()
+train_RMSE <- c()
+train_MAPE <- c()
+
+test_MAE <- c()
+test_RMSE <- c()
+test_MAPE <- c()
+
+
+# For loop for models with different seeds
+for (i in seq(1000))
+
+  {
+  
+  set.seed(i)
+
+  splitIndex <- createDataPartition(df$charges, p = 0.9, list = FALSE)
+
+  # Create the training, testing, and validation sets
+  train.data <- df[splitIndex, ]
+  remaining_data <- df[-splitIndex, ]
+
+  splitIndexValidation <- createDataPartition(remaining_data$charges, p = 0.5,
+                                              list = FALSE)
+
+  test.data <- remaining_data[splitIndexValidation, ]
+  validation.data <- remaining_data[-splitIndexValidation, ]
+
+
+  # Multi-Level Varying Slopes & Varying Intercept Model
+  model_1 <- lmer(charges ~ age*bmi + region + children + female + (1 | smoker) 
+                     , data = train.data)
+  
+  
+  
+  # Make predictions on the train test
+  train_predictions <- predict(model_1, newdata = train.data)
+
+  # Calculate the train MAE
+  train_mae <- mean(abs(train_predictions -
+                                   train.data$charges))
+
+  # append the train MAE
+  train_MAE <- append(train_MAE, train_mae)
+  
+  # Calculate the train RMSE
+  train_rmse <- sqrt(mean((train_predictions -
+                                      train.data$charges)^2))
+  
+  # append the train RMSE
+  train_RMSE <- append(train_RMSE, train_rmse)
+  
+  #Calculate the train MAPE
+  train_mape <- mean(abs((train.data$charges - train_predictions) / train.data$charges)) * 100
+  
+  train_MAPE <- append(train_MAPE, train_mape)
+  
+  
+
+  # Make predictions on the test set
+  test_predictions <- predict(model_1, newdata = test.data)
+
+  # Calculate the test MAE
+  test_mae <- mean(abs(test_predictions - test.data$charges))
+
+  #append the test MAE
+  test_MAE <- append(test_MAE, test_mae)
+  
+   # Calculate the test RMSE
+  test_rmse <- sqrt(mean((test_predictions -
+                                      test.data$charges)^2))
+  
+  # append the test RMSE
+  test_RMSE <- append(test_RMSE, test_rmse)
+  
+  
+  #Calculate the train MAPE
+  test_mape <- mean(abs((test.data$charges - test_predictions) / test.data$charges)) * 100
+  
+  test_MAPE <- append(test_MAPE, test_mape)
+  
+  
+  }
+
+Model_1_error <- data.frame(test_MAE, test_RMSE,test_MAPE, train_MAE,train_RMSE,train_MAPE) %>% arrange(test_MAE)
+
+
+``` 
+
+
+# Model 2 (with varying slope) : Performance with different seeds
+```{r}
+train_MAE <- c()
+train_RMSE <- c()
+train_MAPE <- c()
+
+test_MAE <- c()
+test_RMSE <- c()
+test_MAPE <- c()
+
+
+# For loop for models with different seeds
+for (i in seq(1000))
+
+  {
+  
+  set.seed(i)
+
+  splitIndex <- createDataPartition(df$charges, p = 0.9, list = FALSE)
+
+  # Create the training, testing, and validation sets
+  train.data <- df[splitIndex, ]
+  remaining_data <- df[-splitIndex, ]
+
+  splitIndexValidation <- createDataPartition(remaining_data$charges, p = 0.5,
+                                              list = FALSE)
+
+  test.data <- remaining_data[splitIndexValidation, ]
+  validation.data <- remaining_data[-splitIndexValidation, ]
+
+
+  # Multi-Level Varying Slopes & Varying Intercept Model
+  model_2 <- lmer(charges ~ age*bmi + region + children + female + (1 | smoker) +
+                    (0 + bmi|smoker) , data = train.data)
+  
+  
+  
+  # Make predictions on the train test
+  train_predictions <- predict(model_2, newdata = train.data)
+
+  # Calculate the train MAE
+  train_mae <- mean(abs(train_predictions -
+                                   train.data$charges))
+
+  # append the train MAE
+  train_MAE <- append(train_MAE, train_mae)
+  
+  # Calculate the train RMSE
+  train_rmse <- sqrt(mean((train_predictions -
+                                      train.data$charges)^2))
+  
+  # append the train RMSE
+  train_RMSE <- append(train_RMSE, train_rmse)
+  
+  #Calculate the train MAPE
+  train_mape <- mean(abs((train.data$charges - train_predictions) / train.data$charges)) * 100
+  
+  train_MAPE <- append(train_MAPE, train_mape)
+  
+  
+
+  # Make predictions on the test set
+  test_predictions <- predict(model_2, newdata = test.data)
+
+  # Calculate the test MAE
+  test_mae <- mean(abs(test_predictions - test.data$charges))
+
+  #append the test MAE
+  test_MAE <- append(test_MAE, test_mae)
+  
+   # Calculate the test RMSE
+  test_rmse <- sqrt(mean((test_predictions -
+                                      test.data$charges)^2))
+  
+  # append the test RMSE
+  test_RMSE <- append(test_RMSE, test_rmse)
+  
+  
+  #Calculate the train MAPE
+  test_mape <- mean(abs((test.data$charges - test_predictions) / test.data$charges)) * 100
+  
+  test_MAPE <- append(test_MAPE, test_mape)
+  
+  }
+
+
+Model_2_error <- data.frame(test_MAE, test_RMSE,test_MAPE, train_MAE,train_RMSE,train_MAPE) %>% arrange(test_MAE)
+
+``` 
+
+
+# Compare Model 1 and Model 2
+```{r}
+# Compare Prediction errors
+
+head(Model_1_error)
+head(Model_2_error)
+
+
+library(performance) 
+model_performance(model_2)
+model_performance(model_1)
+
+```
+- Model 2's prediction errors are smaller than Model 2's.
+- Model 2 has lower AIC and BIC, and higher conditional R squared value.
+- Model 2 has better performance.
+
+
+# Best Model : Multilevel Hierarchical Model (Model_2)
+```{r}
+set.seed(368)
+
+splitIndex <- createDataPartition(df$charges, p = 0.9, list = FALSE)
+
+# Create the training, testing, and validation sets
+train.data <- df[splitIndex, ]
+remaining_data <- df[-splitIndex, ]
+
+splitIndexValidation <- createDataPartition(remaining_data$charges, p = 0.5, list = FALSE)
+
+test.data <- remaining_data[splitIndexValidation, ]
+validation.data <- remaining_data[-splitIndexValidation, ]
+
+
+# Multi-Level Varying Slopes & Varying Intercept Model
+model_2 <- lmer(charges ~ age*bmi + region + children + female + (1 | smoker) + (0 + bmi|smoker) , data = train.data)
+
+fixef(model_2)
+coef(model_2)$smoker
+ranef(model_2)$smoker
+
+print(summary(model_2))
+
+coefficients(model_2)
+
+```
+
+
+# Model Performance Evaluation
+```{r}
+# validation test VS training set 
+
+validation_predictions <- predict(model_2, newdata = validation.data)
+train_predictions <- predict(model_2, newdata = train.data)
+
+# Calculate the train MAE
+train_mae <- mean(abs(train_predictions - train.data$charges))
+
+# Calculate the validation MAE
+validation_mae <- mean(abs(validation_predictions - validation.data$charges))
+
+# Calculate the train RMSE
+train_rmse <- sqrt(mean((train_predictions - train.data$charges)^2))
+
+# Calculate the validation RMSE
+validation_rmse <- sqrt(mean((validation_predictions - validation.data$charges)^2))
+
+cat("Train Mean Absolute Error :", train_mae, "\n")
+cat("Validation Mean Absolute Error :", validation_mae, "\n")
+cat("Train Root Mean Squared Error :", train_rmse, "\n")
+cat("Validation Root Mean Squared Error :", validation_rmse, "\n")
+
+
+
+# Make predictions on the test set
+test_predictions <- predict(model_2, newdata = test.data)
+
+# Calculate the test MAE
+test_mae <- mean(abs(test_predictions - test.data$charges))
+
+# Calculate the train MAE
+train_mae <- mean(abs(train_predictions - train.data$charges))
+
+# Calculate the test RMSE
+test_rmse <- sqrt(mean((test_predictions - test.data$charges)^2))
+
+# Calculate the train RMSE
+train_rmse <- sqrt(mean((train_predictions - train.data$charges)^2))
+
+cat("Test Mean Absolute Error:", test_mae, "\n")
+cat("Train Mean Absolute Error:", train_mae, "\n")
+cat("Test Root Mean Squared Error:", test_rmse, "\n")
+cat("Train Root Mean Squared Error:", train_rmse, "\n")
+
+```
+결론적으로, 테스트에러가 트레이닝에러보다 낮은, 그리고 baseline model보다 peformance가 좋은 모델을 찾게 되었다. 
+
+이 모델이 좋은 성능을 보인다고 단정 짓기에는 몇 가지 의문점이 있습니다. 테스트 세트에서의 낮은 에러는 긍정적인 신호일 수 있지만, 밸리데이션 세트의 높은 에러와 트레이닝 세트 대비 테스트 세트의 낮은 에러는 데이터 세트의 분포나 품질, 그리고 가능한 과적합 문제에 대해 추가적인 검토가 필요함을 나타냅니다.
+
+흡연자 데이터를 오버샘플링한 것이 트레이닝, 밸리데이션, 그리고 테스트 세트에서의 에러 메트릭에 영향을 미쳤을 가능성이 있습니다. 
+오버샘플링은 특정 클래스의 데이터가 반복되어 사용됨으로써 모델이 이러한 반복되는 패턴에 과적합될 수 있습니다. 이 경우, 모델은 훈련 데이터에 대해서는 잘 작동하지만, 새로운 데이터, 즉 밸리데이션 및 테스트 세트에서는 일반화를 잘 하지 못할 수 있습니다.
+테스트 세트의 대표성: 오버샘플링은 트레이닝 및 밸리데이션 세트에만 적용되어야 합니다. 테스트 세트는 가능한 한 실제 환경의 데이터 분포를 반영해야 하므로, 오버샘플링된 데이터를 포함해서는 안 됩니다. 
+
