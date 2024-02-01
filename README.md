@@ -5,12 +5,15 @@
 ## Introduction
 In the Applied Business Analytics Hackathon for Fall 2023, student teams tackled three challenges: data analysis and modeling, business case analysis, and a technical interview simulation, all revolving around a health insurance dataset. Our team's mission was to derive precise, personalized insurance quotes, ensuring our mock company's profitability and customer retention.
 
+
 ## Data and Methods
 The dataset featured seven variables: age, sex, BMI, children, smoking status, region, and charges. Our analysis involved data cleaning, examining for missing values, converting categorical variables to binary, and checking for multicollinearity. We discovered significant influences of 'Smoker,' 'Age,' and 'BMI' on insurance charges and proceeded to employ various predictive modeling techniques, including multilevel regression models, to forecast charges accurately.
 Also, we developed an interactive R Shiny App that provides real-time estimation of insurance quotes based on the model to enhance data-driven decision-making for users.
 
 - Shiny App URL:
 https://ol0sjn-jiun-lee.shinyapps.io/Insurance_Quote_Prediction/
+![Screenshot 2024-02-01 at 1 07 29 AM](https://github.com/lizzie86/ABA_Hackathon_Insuarance_Quote_Prediction/assets/111255164/742248dc-4270-4b10-a6ca-59e122f5128b)
+
 
 ## Model Development and Evaluation
 
@@ -40,8 +43,10 @@ Still, there are some questions about whether we can conclude that this model pe
 
 It is possible that oversampling the smoker data affected the error metrics in the training, validation, and test sets. Oversampling causes certain data classes to be used repeatedly, which can cause the model to overfit these repeating patterns. In this case, the model may perform well on the training data but may not generalize well to new data, i.e., validation and test sets. So, oversampling can only be applied to training and validation sets. The test set should reflect the real-world data distribution as much as possible and should not contain oversampled data, considering the importance of the representativeness of the test set.
 
+
 ## Conclusion
 Though not perfect, represents the best solution within the Hackathon's tight timeframe. It highlighted the significant effects of smoking and BMI on insurance costs. This experience honed our skills in rapid model optimization and provided valuable insights into data-driven decision-making under pressure.
+
 
 ## Team Members
 - Danya Zhang
