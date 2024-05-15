@@ -39,9 +39,12 @@ Mean Absolute Percentage Error (MAPE): An improvement of 41.7%, from 39.49422% t
 ## Results and Discussion
 Our multilevel regression model with varying slopes and intercepts (Model 2) outperformed the baseline model, indicating an adeptness in capturing the nuances of how smoking status and BMI affect insurance costs. The model achieved a conditional R-squared of 0.906, signifying that about 90.6% of the variance was explained by our model.
 
-Still, there are some questions about whether we can conclude that this model performs well. A low error on the test set can be a positive sign. However, a high error on the validation set and a low error on the test set relative to the training set may indicate the need for further review of the distribution or quality of the data set and possible overfitting issues.
 
-It is possible that oversampling the smoker data affected the error metrics in the training, validation, and test sets. Oversampling causes certain data classes to be used repeatedly, which can cause the model to overfit these repeating patterns. In this case, the model may perform well on the training data but may not generalize well to new data, i.e., validation and test sets. So, oversampling can only be applied to training and validation sets. The test set should reflect the real-world data distribution as much as possible and should not contain oversampled data, considering the importance of the representativeness of the test set.
+Still, there are some questions about whether we can conclude that this model performs well. A low error on the test set can be a positive sign. However, a high error on the validation set and a low error on the test set relative to the training set may indicate the need for further review of the distribution or quality of the data set.
+
+It could mean that there is some issue with how the data was split between training, validation, and testing. Perhaps the validation set is not representative of the data used in the training or the test set. This might happen if the validation set has different characteristics due to the sampling method.
+
+It is possible that oversampling the smoker data affected the error metrics in the training, validation, and test sets. 
 
 
 ## Conclusion
